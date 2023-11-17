@@ -1,18 +1,25 @@
 const { Datos } = require("../../db.js");
 const { v1 } = require("uuid");
-
+const { EventEmitter } = require("events");
 class DatosService {
+  constructor() {
+    // Inicializamos un EventEmitter para manejar eventos SSE
+    this.eventEmitter = new EventEmitter();
+  }
   async create(request) {
     try {
       const {
         body: { data },
       } = request;
 
-      data.forEach(async (datosValue) => {
+      data.forEach((datosValue) => {
         datosValue.ID = v1();
-        const bodyRequest = datosValue;
-        await Datos.create(bodyRequest);
       });
+
+      // Utilizamos Sequelize para crear datos
+      await Datos.bulkCreate(data);
+
+      this.eventEmitter.emit("newData", await this.getAllDatos());
     } catch (error) {
       console.error("Error al crear el registro:", error);
       throw error;
@@ -21,60 +28,31 @@ class DatosService {
 
   async getAllDatos() {
     try {
-      return await Datos.findAll();
+      return await Datos.findAll({
+        order: [["createdAt", "DESC"]],
+        limit: 2,
+      });
     } catch (error) {
       console.error("Error al obtener Datos:", error);
       throw error;
     }
   }
 
-  async updateCategoria(dataUpdate) {
-    const {
-      body,
-      user: {
-        dataUser: { ID },
-      },
-    } = dataUpdate;
-
-    try {
-      const rowsUpdated = await Categoria.update(body, {
-        where: { name: body.name, SportsInstitutionID: ID },
-        returning: true,
-      });
-
-      if (rowsUpdated[0] === 0) {
-        // No se actualizó ningún registro
-        return null;
-      }
-
-      return "Categoria actualizado con éxito";
-    } catch (error) {
-      console.error("Error al actualizar el Categoria:", error);
-      throw error;
-    }
+  subscribeToSSE(callback) {
+    this.eventEmitter.on("newData", callback);
   }
 
-  async getCategoria(name) {
-    return await Categoria.findOne({
-      where: { name: name },
+  // Método para configurar ganchos
+  setupHooks() {
+    Datos.addHook("afterCreate", async (datosInstance, options) => {
+      // Emitir evento SSE después de crear un nuevo dato
+      this.eventEmitter.emit("newData", await this.getAllDatos());
     });
-  }
 
-  async getAllCategoriaByCoach(request) {
-    try {
-      const {
-        user: {
-          dataUser: { SportsInstitutionID },
-        },
-      } = request;
-
-      return await Categoria.findAll({
-        where: { SportsInstitutionID },
-      });
-    } catch (error) {
-      console.error("Error al obtener las Categorias:", error);
-      throw error;
-    }
+    Datos.addHook("afterBulkCreate", async (datosInstances, options) => {
+      // Emitir evento SSE después de crear datos en masa
+      this.eventEmitter.emit("newData", await this.getAllDatos());
+    });
   }
 }
 

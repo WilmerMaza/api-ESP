@@ -27,33 +27,37 @@ router.post("/create", async (req, res) => {
   }
 });
 
-// router.put("/update", verificationToken, async (req, res) => {
-//   try {
-//     const Categoria = await CategoriaService.updateCategoria(req);
-//     if (Categoria) {
-//       const response = {
-//         Menssage: "Registro Actualizado Exitosamente",
-//       };
-//       res.status(200).send(response);
-//     } else {
-//       res.status(404).json({ error: "El registro no fue encontrado" });
-//     }
-//   } catch (error) {
-//     console.error("Error al actualizar el registro:", error);
-//     res
-//       .status(500)
-//       .json({ error: "Error al actualizar el registro", mjs: error.message });
-//   }
-// });
+// SSE Endpoint para notificaciones en tiempo real
+// SSE Endpoint para notificaciones en tiempo real
+router.get("/notificaciones-sse", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
 
+  // Manejar la desconexión del cliente
+  req.on("close", () => {
+    console.log("Cliente SSE desconectado");
+    res.end();
+  });
 
-// router.post("/getAllByCoach", verificationToken, async (req, res) => {
-//   try {
-//     const Categoria = await CategoriaService.getAllCategoriaByCoach(req);
-//     res.json(Categoria);
-//   } catch (error) {
-//     res.status(500).json({ error: "Error al obtener los registros" });
-//   }
-// });
+  // Establecer la conexión SSE
+  const sendSSE = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Suscribirse a eventos SSE
+  const onNewData = (datos) => {
+    sendSSE(datos);
+  };
+
+  // Iniciar el envío de datos y suscribirse a cambios
+  data.subscribeToSSE(onNewData);
+
+  // Manejar errores
+  req.on("error", (err) => {
+    console.error("Error en la conexión SSE:", err);
+  });
+});
+
 
 module.exports = router;
